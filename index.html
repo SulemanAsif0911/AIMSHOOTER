@@ -435,20 +435,20 @@ function addMapModel(gltf){
   const center = new THREE.Vector3(); box.getCenter(center);
   root.position.x -= center.x;
   root.position.z -= center.z;
-  root.position.y -= box.min.y; // drop so the floor sits at y=0
+  root.position.y -= box.min.y; // provisional — refined below
   root.updateMatrixWorld(true);
 
-  const box2 = new THREE.Box3().setFromObject(root);
-  groundY = box2.min.y;
-  safetyGround.position.set(0, groundY-2, 0);
-
-  // Collision: only keep meshes with a reasonably large footprint (walls,
-  // floors, big furniture) so per-frame wall raycasting stays fast against
-  // a scene this detailed (3000+ meshes) — small decorative props are
-  // skipped rather than fought against for movement collision.
+  // Collision + ground-level detection in one pass.
+  // Ground level is NOT simply the model's absolute lowest point: a
+  // detailed architectural scan like this one usually includes foundation
+  // or understructure geometry below the actual walkable floor, and using
+  // the true global minimum there put the player underground. Instead,
+  // take a low percentile of individual mesh floor heights — this tracks
+  // the real ground floor and ignores a handful of deeper outlier meshes.
   window.__mapCollidables = [];
   const tmpBox = new THREE.Box3();
   const tmpSize = new THREE.Vector3();
+  const floorSamples = [];
   root.traverse(o=>{
     if(!o.isMesh) return;
     tmpBox.setFromObject(o);
@@ -456,7 +456,12 @@ function addMapModel(gltf){
     if(Math.max(tmpSize.x, tmpSize.y, tmpSize.z) > 30){
       window.__mapCollidables.push(o);
     }
+    if(isFinite(tmpBox.min.y)) floorSamples.push(tmpBox.min.y);
   });
+  floorSamples.sort((a,b)=>a-b);
+  const pIdx = Math.floor(floorSamples.length*0.1);
+  groundY = floorSamples.length ? floorSamples[pIdx] : 0;
+  safetyGround.position.set(0, groundY-2, 0);
 }
 
 /* ============================= PISTOL VIEWMODEL ============================= */
@@ -723,10 +728,22 @@ let verticalVel = 0;
 let onGround = true;
 const raycaster = new THREE.Raycaster();
 
-function groundHeightAt(x,z){
-  // Vertical placement always uses the flat safety-ground plane so the player
-  // never snaps onto a roof/skybox mesh from the source map. Map geometry is
-  // still used for horizontal wall collision in wallBlocked().
+function groundHeightAt(x, z, fromY){
+  // Real per-frame ground detection against the map, so stairs/ramps work —
+  // not just a flat assumption. Search a window around the caller's current
+  // height rather than from a fixed high altitude, so we land on the actual
+  // nearby floor/step instead of risking a hit on a roof far above or a
+  // basement far below.
+  const collidables = window.__mapCollidables;
+  if(collidables && collidables.length){
+    const top = (typeof fromY === 'number') ? fromY + 80 : groundY + 600;
+    const range = (typeof fromY === 'number') ? 380 : 1200;
+    raycaster.set(new THREE.Vector3(x, top, z), new THREE.Vector3(0,-1,0));
+    raycaster.far = range;
+    const hits = raycaster.intersectObjects(collidables, false);
+    raycaster.far = Infinity;
+    if(hits.length) return hits[0].point.y;
+  }
   return groundY;
 }
 
@@ -771,8 +788,8 @@ function updateMovement(dt){
   velocity.x = horizVel.x; velocity.z = horizVel.y;
 
   // gravity / jump
-  const gY = groundHeightAt(yawObject.position.x, yawObject.position.z);
   const feetY = yawObject.position.y - PLAYER.eyeHeight;
+  const gY = groundHeightAt(yawObject.position.x, yawObject.position.z, feetY);
   onGround = feetY <= gY+2;
   if(onGround){
     verticalVel = 0;
@@ -794,7 +811,7 @@ function updateMovement(dt){
   }
 
   pos.y += verticalVel*dt;
-  const groundNow = groundHeightAt(pos.x, pos.z);
+  const groundNow = groundHeightAt(pos.x, pos.z, feetY);
   if(pos.y - PLAYER.eyeHeight < groundNow){
     pos.y = groundNow + PLAYER.eyeHeight;
     verticalVel = 0;

@@ -490,8 +490,8 @@ function setupWeapon(gltf){
   // Its own origin sits low/behind the geometry rather than centered, so we
   // reposition using the real center instead of guessing an offset.
   const localCenter = new THREE.Vector3(0, 0.2515, -0.0365);
-  const targetAnchor = new THREE.Vector3(0.18, -0.16, -0.38); // typical bottom-right FPS spot
-  const WEAPON_SCALE = 1.2;
+  const targetAnchor = new THREE.Vector3(0.13, -0.03, -0.48); // pulled up/in/back so it isn't cropped off-screen
+  const WEAPON_SCALE = 1.05;
   weaponRig.scale.setScalar(WEAPON_SCALE);
   weaponBasePos.copy(targetAnchor).addScaledVector(localCenter, -WEAPON_SCALE);
   weaponRig.position.copy(weaponBasePos);

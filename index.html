@@ -351,6 +351,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.shadowMap.enabled = false;
+renderer.localClippingEnabled = true;
 container.appendChild(renderer.domElement);
 
 window.addEventListener('resize', ()=>{
@@ -501,7 +502,15 @@ function setupWeapon(gltf){
   weaponRig.position.copy(weaponBasePos);
   weaponRig.rotation.set(-0.05, Math.PI, 0.03);
 
-  weaponRig.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; o.renderOrder=999; }});
+  const weaponClipPlane = new THREE.Plane();
+  weaponRig.traverse(o=>{
+    if(o.isMesh){
+      o.frustumCulled=false; o.renderOrder=999;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach(m=>{ if(m){ m.clippingPlanes = [weaponClipPlane]; m.clipShadows = false; } });
+    }
+  });
+  window.__weaponClipPlane = weaponClipPlane;
   camera.add(weaponRig);
 
   weaponMixer = new THREE.AnimationMixer(weaponRig);
@@ -923,6 +932,17 @@ function updateWeaponPose(dt){
     weaponBasePos.y + recoilT*0.018,
     weaponBasePos.z + Math.max(0, kickZ)
   );
+
+  // Cut away the open sleeve-stump geometry that shows up near the camera —
+  // this asset only includes truncated arms (no body), so clip anything
+  // closer than CLIP_DIST along the camera's own view direction.
+  if(window.__weaponClipPlane){
+    const CLIP_DIST = 0.22;
+    const camPos = camera.getWorldPosition(new THREE.Vector3());
+    const camDir = camera.getWorldDirection(new THREE.Vector3());
+    window.__weaponClipPlane.normal.copy(camDir);
+    window.__weaponClipPlane.constant = -(camPos.dot(camDir) + CLIP_DIST);
+  }
 }
 
 /* ============================= HUD / STATS ============================= */

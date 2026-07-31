@@ -339,7 +339,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9fb4c9);
 scene.fog = new THREE.FogExp2(0xb9c6d4, 0.0018);
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.02, 8000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.01, 8000);
 const yawObject = new THREE.Object3D();   // rotates on Y (left/right)
 const pitchObject = new THREE.Object3D(); // rotates on X (up/down)
 pitchObject.add(camera);
@@ -490,8 +490,8 @@ function setupWeapon(gltf){
   // Its own origin sits low/behind the geometry rather than centered, so we
   // reposition using the real center instead of guessing an offset.
   const localCenter = new THREE.Vector3(0, 0.2515, -0.0365);
-  const targetAnchor = new THREE.Vector3(0.15, -0.10, -0.15);
-  const WEAPON_SCALE = 1.65;
+  const targetAnchor = new THREE.Vector3(0.15, -0.10, -0.075);
+  const WEAPON_SCALE = 2.0;
   weaponRig.scale.setScalar(WEAPON_SCALE);
   weaponBasePos.copy(targetAnchor).addScaledVector(localCenter, -WEAPON_SCALE);
   weaponRig.position.copy(weaponBasePos);
@@ -857,7 +857,7 @@ function fireWeapon(){
   stats.shots++;
   updateHUD();
   playSound(sndShot, 0.55);
-  muzzleFlash.intensity = 6; muzzleFlash.position.set(0.16, 0.13, -0.28);
+  muzzleFlash.intensity = 6; muzzleFlash.position.set(0.17, 0.17, -0.10);
   setTimeout(()=>{ muzzleFlash.intensity=0; }, 60);
   recoilT = 1;
   camKick = Math.min(1, camKick + 0.9);

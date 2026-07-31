@@ -495,7 +495,7 @@ function setupWeapon(gltf){
   weaponRig.scale.setScalar(WEAPON_SCALE);
   weaponBasePos.copy(targetAnchor).addScaledVector(localCenter, -WEAPON_SCALE);
   weaponRig.position.copy(weaponBasePos);
-  weaponRig.rotation.set(0,0,0);
+  weaponRig.rotation.set(0, Math.PI, 0);
 
   weaponRig.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; o.renderOrder=999; }});
   camera.add(weaponRig);
@@ -728,6 +728,26 @@ let verticalVel = 0;
 let onGround = true;
 const raycaster = new THREE.Raycaster();
 
+function findSpawnFloor(x, z){
+  // The initial spawn needs to land inside an actual room, not just on the
+  // first surface hit below (which is the roof if the spawn XZ happens to
+  // be under an intact section of it). Scan the full vertical stack of
+  // hits and land in the first gap with real headroom — this naturally
+  // skips past the roof's own thickness (its top and underside register
+  // as two very close hits) and finds a genuine room.
+  const collidables = window.__mapCollidables;
+  if(!collidables || !collidables.length) return groundY;
+  raycaster.set(new THREE.Vector3(x, groundY+3000, z), new THREE.Vector3(0,-1,0));
+  raycaster.far = Infinity;
+  const hits = raycaster.intersectObjects(collidables, false);
+  if(!hits.length) return groundY;
+  for(let i=0;i<hits.length-1;i++){
+    const gap = hits[i].point.y - hits[i+1].point.y;
+    if(gap > PLAYER.height + 20) return hits[i+1].point.y;
+  }
+  return hits[hits.length-1].point.y;
+}
+
 function groundHeightAt(x, z, fromY){
   // Real per-frame ground detection against the map, so stairs/ramps work —
   // not just a flat assumption. Search a window around the caller's current
@@ -760,7 +780,7 @@ function updateMovement(dt){
   const moveRight = (keys['KeyD']?1:0) - (keys['KeyA']?1:0);
 
   const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).negate();
-  const right = new THREE.Vector3(Math.sin(yaw+Math.PI/2), 0, Math.cos(yaw+Math.PI/2)).negate();
+  const right = new THREE.Vector3(Math.sin(yaw+Math.PI/2), 0, Math.cos(yaw+Math.PI/2));
 
   const wishDir = new THREE.Vector3();
   wishDir.addScaledVector(forward, moveForward);
@@ -946,7 +966,7 @@ function beginCountdown(){
   gameState='countdown';
   // place player + targets at a fresh spawn point
   const spawnX = 0, spawnZ = 60;
-  const gY = groundHeightAt(spawnX, spawnZ);
+  const gY = findSpawnFloor(spawnX, spawnZ);
   yawObject.position.set(spawnX, gY+PLAYER.eyeHeight, spawnZ);
   yaw=0; pitch=0; yawObject.rotation.y=0; pitchObject.rotation.x=0;
   TRAINING_ORIGIN.set(spawnX, gY, spawnZ);

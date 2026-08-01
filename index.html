@@ -389,7 +389,14 @@ function findAllFloorsAt(x, z){
     const gap = hits[i].point.y - hits[i+1].point.y;
     if(gap > PLAYER.height + 20) floors.push(hits[i+1].point.y);
   }
-  if(hits.length) floors.push(hits[0].point.y); // top surface — roof / outside
+  // A lone surface near the building's overall ground level (nothing above
+  // it) is legitimate outdoor ground — include it. A lone surface well
+  // above ground level with nothing below it is a rooftop, and is
+  // deliberately excluded per "don't put targets on the roof".
+  if(hits.length){
+    const lowest = hits[hits.length-1].point.y;
+    if(Math.abs(lowest - groundY) < 150 && !floors.includes(lowest)) floors.push(lowest);
+  }
   return floors;
 }
 
@@ -520,7 +527,6 @@ const keys = {};
 let sprinting=false;
 let pointerLocked=false;
 let yaw=0, pitch=0;
-let targetYaw=0, targetPitch=0;
 
 document.addEventListener('keydown', e=>{
   keys[e.code]=true;
@@ -536,9 +542,10 @@ document.addEventListener('keyup', e=>{
 document.addEventListener('mousemove', e=>{
   if(!pointerLocked) return;
   const sens = 0.0022;
-  targetYaw -= e.movementX*sens;
-  targetPitch -= e.movementY*sens;
-  targetPitch = Math.max(-Math.PI/2+0.05, Math.min(Math.PI/2-0.05, targetPitch));
+  yaw -= e.movementX*sens;
+  pitch -= e.movementY*sens;
+  pitch = Math.max(-Math.PI/2+0.05, Math.min(Math.PI/2-0.05, pitch));
+  yawObject.rotation.y = yaw;
 });
 
 renderer.domElement.addEventListener('mousedown', e=>{
@@ -826,7 +833,7 @@ function beginCountdown(){
   const spawnX = 0, spawnZ = 60;
   const gY = findSpawnFloor(spawnX, spawnZ);
   yawObject.position.set(spawnX, gY+PLAYER.eyeHeight, spawnZ);
-  yaw=0; pitch=0; targetYaw=0; targetPitch=0; yawObject.rotation.y=0; pitchObject.rotation.x=0;
+  yaw=0; pitch=0; yawObject.rotation.y=0; pitchObject.rotation.x=0;
   TRAINING_ORIGIN.set(spawnX, gY, spawnZ);
   scatterTargetsAcrossMap(DIFFICULTY[difficulty].count);
 
@@ -898,9 +905,6 @@ function animate(){
   const dt = Math.min(0.05, clock.getDelta());
 
   // smoothed mouse look — eases toward the raw target instead of snapping
-  const lookSmooth = 1 - Math.pow(0.15, dt); // strong smoothing — eases in over ~0.6s instead of snapping
-  yaw += (targetYaw-yaw)*lookSmooth;
-  pitch += (targetPitch-pitch)*lookSmooth;
   yawObject.rotation.y = yaw;
 
   if(weaponMixer) weaponMixer.update(dt);

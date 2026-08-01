@@ -688,6 +688,7 @@ const keys = {};
 let sprinting=false;
 let pointerLocked=false;
 let yaw=0, pitch=0;
+let targetYaw=0, targetPitch=0;
 
 document.addEventListener('keydown', e=>{
   keys[e.code]=true;
@@ -703,11 +704,9 @@ document.addEventListener('keyup', e=>{
 document.addEventListener('mousemove', e=>{
   if(!pointerLocked) return;
   const sens = 0.0022;
-  yaw -= e.movementX*sens;
-  pitch -= e.movementY*sens;
-  pitch = Math.max(-Math.PI/2+0.05, Math.min(Math.PI/2-0.05, pitch));
-  yawObject.rotation.y = yaw;
-  pitchObject.rotation.x = pitch;
+  targetYaw -= e.movementX*sens;
+  targetPitch -= e.movementY*sens;
+  targetPitch = Math.max(-Math.PI/2+0.05, Math.min(Math.PI/2-0.05, targetPitch));
 });
 
 renderer.domElement.addEventListener('mousedown', e=>{
@@ -1062,6 +1061,12 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(0.05, clock.getDelta());
+
+  // smoothed mouse look — eases toward the raw target instead of snapping
+  const lookSmooth = 1 - Math.pow(0.0025, dt); // framerate-independent ease
+  yaw += (targetYaw-yaw)*lookSmooth;
+  pitch += (targetPitch-pitch)*lookSmooth;
+  yawObject.rotation.y = yaw;
 
   if(weaponMixer) weaponMixer.update(dt);
   if(gameState==='playing' && clockRunning) updateWeaponAnimState();
